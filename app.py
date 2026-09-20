@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from src.scanner import scan
+from src.cleaner import remove_duplicates, fill_missing
 
 st.set_page_config(page_title="Dataset Analyzer", layout="wide")
 
@@ -41,3 +42,74 @@ if uf is not None:
 
     st.subheader("Data Types")
     st.dataframe(scanr["data_types"])
+    st.header("Clean Dataset")
+    res=df.copy()
+    rd=st.checkbox("Remove the duplicate rows")
+    if rd:
+        res=remove_duplicates(res)
+        removed=len(df)-len(res)
+        st.success(f"{removed} duplicate rows were removed")
+
+    
+    st.subheader("Handling the Missing Values")
+    missingC=[]
+    for col in res.columns:
+        if res[col].isnull().sum()>0:
+            missingC.append(col)
+    if len(missingC)==0:
+        st.success("No missing values")
+    else:
+        for col in missingC:
+            st.write(f"**{col}**")
+
+            if res[col].dtype != "object":
+                choices = [
+                    "Don't Change",
+                    "Replace with Mean Value",
+                    "Replace with Median Value",
+                    "Replace with Mode Value"
+                ]
+            else:
+                choices = [
+                    "Don't Change",
+                    "Replace with Mode Value"
+                ]
+            choice=st.selectbox(f"Choose how you wish to fill the missing value(s) in {col}", choices, key=f"missing_{col}")
+            if choice=="Replace with Mean Value":
+                value=res[col].mean()
+                res=fill_missing(res, col, value)
+            elif choice=="Replace with Median Value":
+                value=res[col].median()
+                res=fill_missing(res, col, value)
+            elif choice=="Replace with Mode Value":
+                value=res[col].mode()[0]
+                res=fill_missing(res, col, value)
+    
+
+    st.header("Cleaned Dataset")
+    st.dataframe(res.head())
+    cleanr=scan(res)
+    cleanSummary=cleanr["summary"]
+    st.subheader("before and after cleaning")
+    bef,aft=st.columns(2)
+    with bef:
+        st.write('**Original Datset**')
+        st.metric("Rows", summary["rows"])
+        st.metric("Missing Values", summary["total missing"])
+        st.metric("DUplicate Rows", summary["duplicates"])
+    with aft:
+        st.write("**Cleaned Dataset**")
+        st.metric("Rows", cleanSummary["rows"])
+        st.metric("Missing Values", cleanSummary["total missing"])
+        st.metric("Duplicate Rows", cleanSummary["duplicates"])
+    
+    csv = res.to_csv(index=False)
+    st.download_button(
+        label="Download Cleaned CSV",
+        data=csv,
+        file_name="cleaned_data.csv",
+        mime="text/csv"
+    )
+
+
+
